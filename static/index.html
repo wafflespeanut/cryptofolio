@@ -63,7 +63,7 @@
     <script>
         const randomNum = () => Math.floor(Math.random() * (235 - 52 + 1) + 52);
         const randomRGB = () => `rgb(${randomNum()}, ${randomNum()}, ${randomNum()})`;
-        const code = '3a993568-efb2-4379-a80a-abac89f250ce';
+        const code = window.location.href.toString().split(window.location.host)[1].split("/")[2];
         let tokens = {};
         let dist = {};
         let msg_box = document.getElementById("msg");
@@ -144,7 +144,7 @@
         }
 
         function setTickers() {
-            fetch(`./tickers?code=${code}`)
+            fetch(`/cryptofolio/tickers?code=${code}`)
                 .then(response => response.json())
                 .then((data) => {
                     tokens = data.tickers;
@@ -181,7 +181,7 @@
                 return;
             }
 
-            let url = `./buy?code=${code}&amount=${amt}`;
+            let url = `/cryptofolio/buy?code=${code}&amount=${amt}`;
             if (replace_inp.checked) {
                 url += '&replace';
             }
@@ -256,7 +256,7 @@
         }
 
         function setPurchases() {
-            let u = `./purchases?code=${code}`;
+            let u = `/cryptofolio/purchases?code=${code}`;
             if (mock_inp.checked) {
                 u += '&mock';
             }
@@ -292,7 +292,7 @@
                 .catch(setError);
 
             if (!mock_inp.checked) {
-                fetch(`./balances?code=${code}`)
+                fetch(`/cryptofolio/balances?code=${code}`)
                     .then(response => response.json())
                     .then((data) => {
                         let x_values = [], y_values = [], z_colors = [], total_worth = 0;

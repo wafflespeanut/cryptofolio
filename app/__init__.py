@@ -1,6 +1,6 @@
 import functools
 import json
-from flask import Flask, request, send_from_directory
+from flask import Flask, request
 
 from .exchange import Client
 from .storage import Storage
@@ -37,12 +37,8 @@ def needs_code(f):
     return wrapped
 
 
-@app.route('/', methods=['GET'])
-def index():
-    return send_from_directory("../static", "index.html")
-
-
 @app.route('/tickers', methods=['GET'])
+@needs_code
 def tickers():
     return jsonify({
         "tickers": spot.tickers(),
