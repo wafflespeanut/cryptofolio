@@ -1,15 +1,318 @@
 <!doctype html>
 <html>
-
 <head>
     <meta charset="utf-8">
     <title>Cryptofolio</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
+        #pie {
+            position: absolute;
+            right: 0;
+            width: 100%;
+            max-width:600px;
+        }
+        #msg.ok {
+            color: green;
+        }
+        #msg.fail {
+            color: red;
+        }
+        #sym {
+            width: 100px;
+        }
+        .pcnt::after {
+            content: '%';
+        }
+        #pcnt {
+            width: 65px;
+        }
+        tr:last-child td {
+            padding-top: 10px;
+        }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
 </head>
 <body>
+    <canvas id="pie"></canvas>
+    <table id="dist">
+        <tr id="base">
+            <td>
+                <input id="sym" type="text">
+            </td>
+            <td>
+                <input id="pcnt" type="number">%
+            </td>
+            <td>
+                <button id="add">+</button>
+            </td>
+        </tr>
+        <tr>
+            <td>$<input id="amt" type="number"></td>
+            <td><button id="buy">Buy</button></td>
+            <td>
+                <input id="replace" type="checkbox">
+                <span>Replace</span>
+            </td>
+            <td>
+                <input id="mock" type="checkbox">
+                <span>Mock</span>
+            </td>
+        </tr>
+    </table>
+    <div id="msg"></div>
     <script>
+        const randomNum = () => Math.floor(Math.random() * (235 - 52 + 1) + 52);
+        const randomRGB = () => `rgb(${randomNum()}, ${randomNum()}, ${randomNum()})`;
+        const code = '3a993568-efb2-4379-a80a-abac89f250ce';
+        let tokens = {};
+        let dist = {};
+        let msg_box = document.getElementById("msg");
+        colors = {'USDT': randomRGB()};
+
+        function setSuccess(msg) {
+            msg_box.innerHTML = msg
+            msg_box.classList.add("ok");
+        }
+
+        function setError(msg) {
+            msg_box.classList.add("fail");
+            msg_box.innerText = msg;
+        }
+
+        function clearError() {
+            msg_box.innerText = '';
+            msg_box.classList.remove("ok");
+            msg_box.classList.remove("fail");
+        }
+
+        let dist_table = document.getElementById("dist");
+        let base_row = document.getElementById("base");
+        let sym_inp = document.getElementById("sym");
+        sym_inp.value = ""
+        let pcnt_inp = document.getElementById("pcnt");
+        pcnt_inp.value = "";
+        let add_btn = document.getElementById("add");
+        add_btn.onclick = () => {
+            clearError();
+
+            let sym = sym_inp.value.toUpperCase();
+            if (!(sym in tokens)) {
+                setError(`${sym} not in list of supported tokens`);
+                return;
+            }
+
+            let pcnt = parseFloat(pcnt_inp.value);
+            if (!pcnt || pcnt <= 0) {
+                setError(`Token proportion not a valid number`);
+                return;
+            }
+
+            let sum = 0;
+            dist_table.querySelectorAll("td.pcnt").forEach(cell => {
+                sum += parseFloat(cell.textContent);
+            });
+
+            if ((sum + pcnt) > 100) {
+                setError(`Token distribution exceeds 100%`);
+                return;
+            }
+
+            sym_inp.value = "";
+            pcnt_inp.value = "";
+            addDistRow(sym, pcnt);
+        };
+
+        function addDistRow(sym, pcnt) {
+            let r = document.createElement("tr");
+            let tbody = dist_table.children[0];
+            tbody.insertBefore(r, base_row);
+            let sym_cell = document.createElement("td");
+            r.appendChild(sym_cell);
+            sym_cell.innerText = sym;
+            sym_cell.classList.add("dist");
+            let pcnt_cell = document.createElement("td");
+            r.appendChild(pcnt_cell);
+            pcnt_cell.classList.add("pcnt");
+            pcnt_cell.classList.add("dist");
+            pcnt_cell.innerText = `${pcnt}`;
+            let rm_btn = document.createElement("button");
+            r.appendChild(rm_btn);
+            rm_btn.innerText = "-";
+            rm_btn.onclick = () => {
+                tbody.removeChild(r);
+            };
+        }
+
+        function setTickers() {
+            fetch(`./tickers?code=${code}`)
+                .then(response => response.json())
+                .then((data) => {
+                    tokens = data.tickers;
+                    for (let sym in tokens) {
+                        colors[sym] = randomRGB();
+                    }
+                    dist = data.distribution;
+                    for (let sym in dist) {
+                        addDistRow(sym, dist[sym]);
+                    }
+                })
+                .catch(setError);
+        }
+
+        let amt_inp = document.getElementById("amt");
+        amt_inp.value = '';
+        let replace_inp = document.getElementById("replace");
+        replace_inp.checked = true;
+        let mock_inp = document.getElementById("mock");
+        mock_inp.checked = false;
+        let buy_btn = document.getElementById("buy");
+
+        mock_inp.onchange = () => {
+            mock_inp.disabled = true;
+            setPurchases();
+        };
+
+        buy_btn.onclick = () => {
+            clearError();
+
+            let amt = parseFloat(amt_inp.value);
+            if (!amt || amt <= 0) {
+                setError(`Amount not a valid number`);
+                return;
+            }
+
+            let url = `./buy?code=${code}&amount=${amt}`;
+            if (replace_inp.checked) {
+                url += '&replace';
+            }
+            if (mock_inp.checked) {
+                url += '&mock';
+            }
+
+            dist = {};
+            let sum = 0;
+            let last_sym = null;
+            dist_table.querySelectorAll("td.dist").forEach(cell => {
+                if (cell.classList.contains("pcnt")) {
+                    let portion = parseFloat(cell.textContent);
+                    sum += portion;
+                    dist[last_sym] = portion;
+                } else {
+                    last_sym = cell.textContent;
+                }
+            });
+
+            if (sum != 100) {
+                setError(`Token distribution must be 100%`);
+                return;
+            }
+
+            buy_btn.disabled = true;
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(dist),
+            })
+            .then(response => response.json())
+            .then((data) => {
+                buy_btn.disabled = false;
+                setSuccess('Placed limit orders at last price(s)');
+                mock_inp.disabled = true;
+                setPurchases();
+            })
+            .catch(setError);
+        };
+
+        let pie_chart = null;
+        function setPie(x_values, y_values, z_colors, total) {
+            if (pie_chart) {
+                pie_chart.destroy();
+            }
+
+            pie_chart = new Chart("pie", {
+                type: "pie",
+                data: {
+                    labels: x_values,
+                    datasets: [{
+                        backgroundColor: z_colors,
+                        data: y_values,
+                    }]
+                },
+                options: {
+                    tooltips: {
+                        callbacks: {
+                            label: function(tooltipItem, data) {
+                                let sym = data['labels'][tooltipItem['index']];
+                                let worth = data['datasets'][0]['data'][tooltipItem['index']];
+                                let ratio = worth * 100 / total;
+                                return `${sym}: \$${worth} (${Math.round(ratio * 10000) / 10000}%)`
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        function setPurchases() {
+            let u = `./purchases?code=${code}`;
+            if (mock_inp.checked) {
+                u += '&mock';
+            }
+            fetch(u)
+                .then(response => response.json())
+                .then((data) => {
+                    if (mock_inp.checked) {
+                        let pie_data = {};
+                        let total_worth = 0;
+                        for (let series of data) {
+                            let day_data = series[1];
+                            for (let sym in day_data) {
+                                if (!(sym in pie_data)) {
+                                    pie_data[sym] = 0;
+                                }
+                                let worth = day_data[sym][0] * day_data[sym][1];
+                                pie_data[sym] += worth;
+                                total_worth += worth;
+                            }
+                        }
+                        let x_values = [], y_values = [], z_colors = [];
+                        for (let sym in pie_data) {
+                            x_values.push(sym);
+                            y_values.push(Math.round(pie_data[sym] * 100) / 100);
+                            z_colors.push(colors[sym]);
+                        }
+                        if (x_values.length > 0) {
+                            setPie(x_values, y_values, z_colors, total_worth);
+                        }
+                        mock_inp.disabled = false;
+                    }
+                })
+                .catch(setError);
+
+            if (!mock_inp.checked) {
+                fetch(`./balances?code=${code}`)
+                    .then(response => response.json())
+                    .then((data) => {
+                        let x_values = [], y_values = [], z_colors = [], total_worth = 0;
+                        for (let sym in data) {
+                            x_values.push(sym);
+                            total_worth += data[sym][0];
+                            y_values.push(Math.round(data[sym][0] * 100) / 100);
+                            z_colors.push(colors[sym]);
+                        }
+                        if (x_values.length > 0) {
+                            setPie(x_values, y_values, z_colors, total_worth);
+                        }
+                        mock_inp.disabled = false;
+                    })
+                    .catch(setError);
+            }
+        }
+
+        setPurchases();
+        setTickers();
     </script>
 </body>
 </html>
