@@ -62,12 +62,10 @@ def balances():
     total = 0
     for sym, qty in spot.balances().items():
         price = 1 if sym == "USDT" else tickers[sym][0]
-        if price * float(qty) < 2:
-            sym = "Others"
         balances.setdefault(sym, [0, 0])
         total += price * float(qty)
         balances[sym][0] += price * float(qty)
-    for sym in balances:
+    for sym in list(balances.keys()):
         balances[sym][1] = (balances[sym][0] * 100) / total
     return jsonify(balances)
 
@@ -85,14 +83,16 @@ def buy():
     replace_dist = request.args.get("replace") is not None
 
     distribution = request.json
-    if sum(v for v in distribution.values()) != 100:
+    if round(sum(v for v in distribution.values()), 2) != 100:
         return jsonify({"msg": "Sum is not 100%"}, code=400)
     tickers = spot.tickers()
-    for k in distribution:
-        if tickers.get(k) is None:
-            return jsonify({"msg": f"{k} missing in exchange"}, code=400)
-        if distribution[k] * tickers[k][0] < 2:
-            return jsonify({"msg": f"Amount for {k} too small"}, code=400)
+    for asset, fraction in distribution.items():
+        if tickers.get(asset) is None:
+            return jsonify({"msg": f"{asset} missing in exchange"}, code=400)
+        price = tickers[asset][0]
+        funds = amount * fraction * 0.01
+        if funds < 1:
+            return jsonify({"msg": f"Amount for {asset} too small"}, code=400)
 
     if replace_dist:
         store.set_distribution(distribution)
@@ -112,7 +112,7 @@ def buy():
         if is_mock:
             continue
         print(f"Buying {qty} {asset} @ ${price} for ${funds}")
-        spot.buy_limit(asset, price, qty)
+        spot.place_buy_limit_order(asset, price, qty)
     store.add_purchase(purchase, mock=is_mock)
     return jsonify({})
 
@@ -129,4 +129,4 @@ def sell():
         if price * float(qty) < 2 or (sym == "BTC" and float(qty) < 0.0001):
             continue
         print(f"Selling {qty} of {sym} @ {price}")
-        spot.sell_limit(sym, price, qty)
+        spot.place_sell_limit_order(sym, price, qty)
