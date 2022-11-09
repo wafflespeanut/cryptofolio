@@ -61,7 +61,7 @@ def balances():
     balances = {}
     total = 0
     for sym, qty in spot.balances().items():
-        price = 1 if sym == "USDT" else tickers[sym][0]
+        price = 1 if sym in ("USDT", "USD") else tickers[sym][0]
         balances.setdefault(sym, [0, 0])
         total += price * float(qty)
         balances[sym][0] += price * float(qty)

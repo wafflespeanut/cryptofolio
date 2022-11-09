@@ -135,6 +135,7 @@
             }
 
             let r = document.createElement("tr");
+            r.classList.add("dist");
             let tbody = dist_table.children[0];
             tbody.appendChild(r);
             let sym_cell = document.createElement("td");
@@ -170,7 +171,7 @@
         let multi_btn = document.getElementById("parse");
         multi_btn.onclick = () => {
             let tbody = dist_table.children[0];
-            dist_table.querySelectorAll("td.dist").forEach(cell => {
+            dist_table.querySelectorAll("tr.dist").forEach(cell => {
                 tbody.removeChild(cell);
             });
             let lines = multi_inp.value.trim().split("\n");
@@ -186,7 +187,7 @@
         };
 
         function setTickers() {
-            fetch(`/cryptofolio/tickers?code=${code}`)
+            return fetch(`/cryptofolio/tickers?code=${code}`)
                 .then(response => response.json())
                 .then((data) => {
                     if ("msg" in data) {
@@ -328,7 +329,7 @@
                         for (let series of data) {
                             let day_data = series[1];
                             for (let sym in day_data) {
-                                let worth = day_data[sym][0] * day_data[sym][1];
+                                let worth = day_data[sym][0] * tokens[sym][0];
                                 if (!(sym in pie_data)) {
                                     pie_data[sym] = 0;
                                 }
@@ -342,7 +343,7 @@
                                 continue;
                             }
                             let worth = pie_data[sym];
-                            if ((worth * 100 / total_worth) < 2) { // group <2% under "Others"
+                            if ((worth * 100 / total_worth) < 1) { // group <1% under "Others"
                                 sym = "Others";
                             }
                             if (!(sym in grouped)) {
@@ -390,7 +391,7 @@
                                 continue;
                             }
                             let worth = data[sym][0];
-                            if ((worth * 100 / total_worth) < 2) { // group <2% under "Others"
+                            if ((worth * 100 / total_worth) < 1) { // group <1% under "Others"
                                 sym = "Others";
                             }
                             if (!(sym in grouped)) {
@@ -413,8 +414,9 @@
             }
         }
 
-        setPurchases();
-        setTickers();
+        setTickers().then(() => {
+            setPurchases();
+        });
     </script>
 </body>
 </html>
